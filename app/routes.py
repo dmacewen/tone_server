@@ -84,6 +84,7 @@ def user(user_id):
 
 @webApp.route('/users/<user_id>/selfie', methods=['GET', 'POST'])
 def user_selfies(user_id):
+    user_id = user_id.lower()
     if request.method == 'GET':
         return 'Getting All User Selfies!'
 
