@@ -97,24 +97,13 @@ def user_selfies(user_id):
         metadata = None
         images = []
         fileNames = [key for key in request.files.keys()]
+        print('FILE NAMES :: ' + str(fileNames))
         for fileName in fileNames:
             if fileName == 'metadata':
                 metadata = request.files[fileName]
             else:
                 images.append([fileName, request.files[fileName]])
                 
-
-        #print(str(fileNames))
-        #print(str(request.data))
-
-        #print("Request Files " + str(request.files))
-
-        #first_image = request.files["1"]
-        #second_image = request.files["2"]
-        #third_image = request.files["3"]
-        ##fourth_image = request.files["4"]
-        #metadata = request.files["metadata"]
-
 
         userImageCount = getAndUpdateUserImageCount(user_id)
         userImageSetName = secure_filename(user_id + userImageCount)
@@ -130,35 +119,11 @@ def user_selfies(user_id):
             imagePath = dirPath + userImageSetName + '-' + imageName + '.PNG'
             image.save(imagePath)
             os.chmod(imagePath, 0o777)
-            
 
         metadataPath = dirPath + userImageSetName + '-metadata.txt'
         metadata.save(metadataPath)
         os.chmod(metadataPath, 0o777)
 
-        #firstImagePath =  imagePath + userImageSetName + '-1.PNG'
-        #secondImagePath = imagePath + userImageSetName + '-2.PNG'
-        #thirdImagePath = imagePath + userImageSetName + '-3.PNG'
-        #fourthImagePath = imagePath + userImageSetName + '-4.PNG'
-        #metadataPath = imagePath + userImageSetName + '-metadata.txt'
-
-
-        #print("Two")
-        #first_image.save(firstImagePath)
-        #second_image.save(secondImagePath)
-        #third_image.save(thirdImagePath)
-        #fourth_image.save(fourthImagePath)
-        #metadata.save(metadataPath)
-
-        #print("Three")
-        #os.chmod(firstImagePath, 0o777)
-        #os.chmod(secondImagePath, 0o777)
-        #os.chmod(thirdImagePath, 0o777)
-        #os.chmod(fourthImagePath, 0o777)
-        #os.chmod(metadataPath, 0o777)
-
-        print("Four")
-        #error = runSteps.run(user_id, userImageSetName, False, False);
         try:
             colorAndFluxish = runSteps.run(user_id, userImageSetName, False, False);
         except Exception as e:
@@ -167,14 +132,6 @@ def user_selfies(user_id):
             return 'And Unknown error occured'
         else:
             return jsonify(colorAndFluxish)
-
-        #print("Four point five")
-        #if error is None:
-        #    print("Five")
-        #    return 'Successfully Processed Selfie #' + userImageCount + ' for ' + user_id
-        #else:
-        #    print("Five point five")
-        #    return error
 
     abort(404)
 
