@@ -74,11 +74,12 @@ def user(user_id):
         if os.path.exists(filePath):
             return 'User Already Exists!'
         else:
-            os.mkdir(filePath)
+            return 'Creating New users not allowed'
+        #    os.mkdir(filePath)
 
-        os.chmod(filePath, 0o777)
+        #os.chmod(filePath, 0o777)
 
-        return 'Created user ' + user_id + '!'
+        #return 'Created user ' + user_id + '!'
 
     abort(404)
 
@@ -121,75 +122,22 @@ def user_selfies(user_id):
             os.chmod(imagePath, 0o777)
 
         metadataPath = dirPath + userImageSetName + '-metadata.txt'
+        print("METADATA PATH :: " + metadataPath)
         metadata.save(metadataPath)
+        print("Metadata Saved")
         os.chmod(metadataPath, 0o777)
+        print("Metadata Access Changed")
 
         try:
-            colorAndFluxish = runSteps.run(user_id, userImageSetName, False, False);
+            colorAndFluxish = runSteps.run(user_id, userImageSetName);
         except Exception as e:
+            print("Error :: " + str(e))
             return str(e)
         except:
             return 'And Unknown error occured'
         else:
+            print("Success")
             return jsonify(colorAndFluxish)
-
-    abort(404)
-
-@webApp.route('/users/<user_id>/selfie_old', methods=['GET', 'POST'])
-def user_selfies_old(user_id):
-    if request.method == 'GET':
-        return 'Getting All User Selfies!'
-
-    if request.method == 'POST':
-        print("Received Selfies")
-
-        #fileNames = [key for key in request.files.keys()]
-        #for fileName in fileNames:
-
-        #print(str(fileNames))
-        #print(str(request.data))
-        if not os.path.exists(IMAGES_DIR + '/' + user_id):
-            return "User " + user_id + " does not exist!"
-
-        base_image = request.files["base_image"]
-        full_flash_image = request.files["full_flash_image"]
-        top_flash_image = request.files["top_flash_image"]
-        bottom_flash_image = request.files["bottom_flash_image"]
-        white_balance = request.files["white_balance"]
-
-        userImageCount = getAndUpdateUserImageCount(user_id)
-        userImageSetName = secure_filename(user_id + userImageCount)
-
-        imagePath = IMAGES_DIR + '/' + user_id + '/' + userImageSetName + '/'
-
-        baseImagePath =  imagePath + userImageSetName + '-base.PNG'
-        fullFlashImagePath = imagePath + userImageSetName + '-fullFlash.PNG'
-        topFlashImagePath = imagePath + userImageSetName + '-topFlash.PNG'
-        bottomFlashImagePath = imagePath + userImageSetName + '-bottomFlash.PNG'
-        whiteBalancePath = imagePath + userImageSetName + '-whiteBalance.txt'
-
-        if not os.path.exists(imagePath):
-            os.mkdir(imagePath)
-
-        os.chmod(imagePath, 0o777)
-
-        base_image.save(baseImagePath)
-        full_flash_image.save(fullFlashImagePath)
-        top_flash_image.save(topFlashImagePath)
-        bottom_flash_image.save(bottomFlashImagePath)
-        white_balance.save(whiteBalancePath)
-
-        os.chmod(baseImagePath, 0o777)
-        os.chmod(fullFlashImagePath, 0o777)
-        os.chmod(topFlashImagePath, 0o777)
-        os.chmod(bottomFlashImagePath, 0o777)
-        os.chmod(whiteBalancePath, 0o777)
-
-        error = runSteps.run(user_id, userImageSetName, 1, 'PNG', False);
-        if error is None:
-            return 'Successfully Processed Selfie #' + userImageCount + ' for ' + user_id
-        else:
-            return error
 
     abort(404)
 
@@ -197,42 +145,5 @@ def user_selfies_old(user_id):
 def user_selfie(user_id, selfie_id):
     if request.method == 'GET':
         return 'Getting A Selfie!'
-
-    abort(404)
-
-#@webApp.route('/users/<user_id>/calibrate', methods=['POST'])
-#def user_calibrate(user_id):
-#    if request.method == 'POST':
-#        calibrationCaptures = []
-#        for i in range(0, CALIBRATION_CAPTURE_COUNT):
-#            filename = "calibrate_" + str(i)
-#            calibrationCapture = request.files[filename]
-#            calibrationCaptures.append(calibrationCapture)
-#
-#        userImageSetName = secure_filename(user_id)
-#
-#        imagePath = CALIBRATIONS_DIR + userImageSetName + '/'
-#
-#        if not os.path.exists(imagePath):
-#            os.mkdir(imagePath)
-#
-#        os.chmod(imagePath, 0o777)
-#
-#        
-#        for calibrationCapture in calibrationCaptures:
-#            filename = secure_filename(calibrationCapture.filename)
-#            path = imagePath + filename
-#            calibrationCapture.save(path)
-#            os.chmod(path, 0o777)
-#
-#        return 'Successfully Saved Calibration Captures!'
-#
-#    abort(404)
-
-@webApp.route('/runner/<user_image>', methods=['GET'])
-def runner(user_image):
-    if request.method == 'GET':
-        runSteps.run(user_image)
-        return 'Ran get Face color on user image :: ' + user_image
 
     abort(404)
