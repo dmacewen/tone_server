@@ -9,12 +9,29 @@ import runSteps
 import cv2
 import os
 import stat
+import psycopg2
+from random import *
 
 #IMAGES_DIR = '/home/dmacewen/Projects/colorMatch/images/'
 IMAGES_DIR = '/home/dmacewen/Projects/tone/images/'
 
 #CALIBRATIONS_DIR = '/home/dmacewen/Projects/colorMatch/calibrations/'
 #CALIBRATION_CAPTURE_COUNT = 16
+
+try:
+    #Do not love storing password in plain text in code....
+    conn = psycopg2.connect(dbname="tone",
+                            user="postgres",
+                            port="5434",
+                            password="dirty vent unroof")
+
+except (Exception, psycopg2.Error) as error:
+    print("Error while fetch data from Postrgesql", error)
+#finally:
+#    if conn:
+#        cursor.close()
+#        connection.close()
+#        print("Postgres Connection Closed")
 
 def getAndUpdateUserImageCount(userName):
     print('Getting And Update User Image Count')
@@ -29,9 +46,7 @@ def getAndUpdateUserImageCount(userName):
         imageCountFileExists = False
         
 
-    print('A')
     with open(filePath, 'r+') as f:
-        print('B')
         lines = f.readlines() #Should only be one value in file, the number of photos taken
         if len(lines) != 0:
             userImageCount = int(lines[0])
@@ -41,59 +56,228 @@ def getAndUpdateUserImageCount(userName):
         f.write(str(userImageCount))
         f.truncate()
 
-    print('C')
     if not imageCountFileExists:
         os.chmod(filePath, 0o777)
 
     return str(userImageCount)
 
+def isUserTokenValid(user_id, request, check_awknowledged_nda=True):
+    # Does user_id exist?
+    print('Validating User ID :: {}'.format(user_id))
+
+    try:
+        user_id = int(user_id)
+    except ValueError:
+        return False
+
+    getUserTokenQuery = 'SELECT token FROM users WHERE user_id=(%s)'
+    data = (user_id, )
+
+    with conn.cursor() as cursor:
+        cursor.execute(getUserTokenQuery, data)
+        userToken = cursor.fetchone()
+
+    print('Stored Token {}'.format(userToken))
+
+    token_key = 'token'
+    if token_key not in request.args:
+        return False
+
+    recieved_token = request.args[token_key]
+
+    try:
+        recieved_token = int(recieved_token)
+    except ValueError:
+        return False
+
+    print('Received user {} with token {}'.format(user_id, recieved_token))
+
+    stored_token = userToken[0]
+
+    print('Received vs Stored :: {} vs {}'.format(recieved_token, stored_token))
+
+    if recieved_token != stored_token:
+        return False
+
+    print('Token is valid!')
+    
+    # Check is token valid
+
+    #if checkBetaNDA:
+        # Is Beta User? Is Confidentiality Awknowledged?
+        # SELECT * FROM beta_users WHERE user_id == user_id
+    if check_awknowledged_nda:
+        getUserAcknowledgementQuery = 'SELECT acknowledge_confidentiality FROM beta_testers WHERE user_id=(%s)'
+        data = (user_id, )
+
+        with conn.cursor() as cursor:
+            cursor.execute(getUserAcknowledgementQuery, data)
+            userAcknowledgement = cursor.fetchone()
+
+        print('User Awknowledged? :: {}'.format(userAcknowledgement))
+
+        if userAcknowledgement is None:
+            return False
+
+        userAcknowledgement = userAcknowledgement[0]
+
+        if not userAcknowledgement:
+            return False
+
+
+
+    return True
+
+def isCaptureSessionValid(user_id, session_id):
+    return False
 
 @webApp.route('/')
 @webApp.route('/index')
 def index():
     return webApp.send_static_file('index.html')
 
-@webApp.route('/users', methods=['GET', 'POST'])
+@webApp.route('/users', methods=['POST'])
 def users():
-    if request.method == 'GET':
-        return 'Getting All Users!'
-
     if request.method == 'POST':
-        return 'Creating a user!'
+        print('GOT LOGIN REQUEST')
+        print(request.form)
+        email_key = 'email'
+        password_key = 'password'
+
+        if email_key not in request.form:
+            abort(403)
+
+        email = request.form[email_key]
+
+        if password_key not in request.form:
+            abort(403)
+
+        password = request.form[password_key]
+
+
+        # Connect to database
+        # Get full user
+        # Check that password matched
+        # If beta user, dont issue token until user signs nda
+        # If yes, return user_id and Generate Token. Store token and send to user
+        # If no, abort 403
+        
+        getUserQuery = 'SELECT user_id, pass FROM users WHERE email=(%s)'
+        data = (email, )
+
+        with conn.cursor() as cursor:
+            cursor.execute(getUserQuery, data)
+            user = cursor.fetchone()
+
+        print("Got user {}".format(user))
+
+        isAuthentic = (user is not None) and (user[1] == password)
+
+        if not isAuthentic:
+            abort(403)
+
+        user_id = user[0]
+        sudo_random_token = int(2147483647 * random())
+
+        updateUserTokenQuery = 'UPDATE users SET token=(%s) WHERE user_id=(%s)'
+        data = (sudo_random_token, user_id)
+
+        with conn.cursor() as cursor:
+            cursor.execute(updateUserTokenQuery, data)
+            conn.commit()
+
+        response = {}
+        response['user_id'] = user_id
+        response['token'] = sudo_random_token
+
+        return jsonify(response)
+        #return 'Recieved user {} with pass {} | Authentic :: {} | token :: {}'.format(email, password, isAuthentic, sudo_random_token)
 
     abort(404)
 
-@webApp.route('/users/<user_id>', methods=['GET', 'POST'])
+@webApp.route('/users/<user_id>', methods=['GET'])
 def user(user_id):
     if request.method == 'GET':
-        return 'This is a user!'
 
-    if request.method == 'POST':
-        filePath = IMAGES_DIR + '/' + user_id
+        if not isUserTokenValid(user_id, request):
+            abort(403)
 
-        if os.path.exists(filePath):
-            return 'User Already Exists!'
-        else:
-            return 'Creating New users not allowed'
-        #    os.mkdir(filePath)
+        getUserSettingsQuery = 'SELECT settings FROM user_settings WHERE user_id=(%s)'
+        data = (user_id)
 
-        #os.chmod(filePath, 0o777)
+        with conn.cursor() as cursor:
+            cursor.execute(getUserSettingsQuery, data)
+            user_settings = cursor.fetchone()
 
-        #return 'Created user ' + user_id + '!'
+        print('Got User ({}) Settings {}'.format(user_id, user_settings))
+
+        if user_settings is None:
+            return jsonify({})
+
+        return user_settings
+
+        # Connect to database
+        # Return user settings and if beta user
 
     abort(404)
 
-@webApp.route('/users/<user_id>/selfie', methods=['GET', 'POST'])
-def user_selfies(user_id):
-    user_id = user_id.lower()
-    if request.method == 'GET':
-        return 'Getting All User Selfies!'
+@webApp.route('/users/<user_id>/agree', methods=['PUT'])
+def user_agreement(user_id):
+    if request.method == 'PUT':
+
+        if not isUserTokenValid(user_id, request, False):
+            abort(403)
+
+        
+        agreement_key = 'agree'
+        if agreement_key not in request.form:
+            abort(403)
+
+        agreement = request.form[agreement_key]
+
+        if not agreement:
+            abort(403)
+
+
+
+
+        # Connect to database
+        # Set agree to true
+
+    abort(404)
+
+@webApp.route('/users/<user_id>/session', methods=['GET', 'POST'])
+def user_capture_session(user_id):
+    if not isUserTokenValid(user_id, request):
+        abort(403)
+    
+    #if request.method == 'POST':
+        # Save updated session info in db
+
+    # GET and POST both return same info
+
+    # Return session id
+    # Return skin color id
+    # Return start database
+    # Return number of captures in this session
+
+    abort(404)
+
+@webApp.route('/users/<user_id>/capture', methods=['POST'])
+def user_capture(user_id):
 
     if request.method == 'POST':
-        print("Received Selfies AFTER EDIT")
 
-        if not os.path.exists(IMAGES_DIR + '/' + user_id):
-            return "User " + user_id + " does not exist!"
+        if not isUserTokenValid(user_id, request):
+            abort(403)
+
+        #if not os.path.exists(IMAGES_DIR + '/' + user_id):
+        #    return "User " + user_id + " does not exist!"
+
+        # Unpack data
+        # Store metadata
+        # save metadata file and capture data in FS
+        # save paths to data in DB
 
         metadata = None
         images = []
@@ -138,12 +322,5 @@ def user_selfies(user_id):
         else:
             print("Success")
             return jsonify(colorAndFluxish)
-
-    abort(404)
-
-@webApp.route('/users/<user_id>/selfie/<selfie_id>', methods=['GET'])
-def user_selfie(user_id, selfie_id):
-    if request.method == 'GET':
-        return 'Getting A Selfie!'
 
     abort(404)
