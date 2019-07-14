@@ -277,7 +277,9 @@ def user_capture_session(user_id):
     if not isUserTokenValid(user_id, request):
         abort(403)
     
-    #if request.method == 'POST':
+    if request.method == 'POST':
+        skin_color_id_key = 'skin_color_id'
+        
         # Save updated session info in db
 
     # GET and POST both return same info
@@ -286,8 +288,24 @@ def user_capture_session(user_id):
     # Return skin color id
     # Return start database
     # Return number of captures in this session
+    getCurrentCaptureSession = 'SELECT session_id, skin_color_id, start_date, out_of_date FROM capture_sessions WHERE user_id=(%s) AND start_date = (SELECT max(start_date) FROM capture_sessions WHERE user_id=(%s))'
+    data = (user_id, user_id)
 
-    abort(404)
+    with conn.cursor() as cursor:
+        cursor.execute(getCurrentCaptureSession, data)
+        currentUserSession = cursor.fetchone()
+
+    if currentUserSession is None:
+        print('No user capture session found')
+        abort(404)
+
+    currentUserSessionObj = {}
+    currentUserSessionObj['session_id'] = currentUserSession[0]
+    currentUserSessionObj['skin_color_id'] = currentUserSession[1]
+    currentUserSessionObj['start_date'] = currentUserSession[2]
+    currentUserSessionObj['out_of_date'] = currentUserSession[3]
+
+    return jsonify(currentUserSessionObj)
 
 @webApp.route('/users/<user_id>/capture', methods=['POST'])
 def user_capture(user_id):
