@@ -203,7 +203,7 @@ def user(user_id):
             abort(403)
 
         getUserSettingsQuery = 'SELECT settings FROM user_settings WHERE user_id=(%s)'
-        data = (user_id)
+        data = (user_id, )
 
         with conn.cursor() as cursor:
             cursor.execute(getUserSettingsQuery, data)
@@ -233,13 +233,39 @@ def user_agreement(user_id):
         if agreement_key not in request.form:
             abort(403)
 
-        agreement = request.form[agreement_key]
+        agreement = request.form[agreement_key].lower()
+
+        print('AGREEMENT :: {}'.format(agreement))
+
+
+
+        isTrue = agreement == 'true'
+        isFalse = agreement == 'false'
+
+        if (not isTrue) and (not isFalse):
+            abort(403)
+
+        agreement = isTrue
+
+        if agreement:
+            print('Passes True')
+
+        if not agreement:
+            print('Passes False')
+
+        print('AGREEMENT :: {}'.format(agreement))
+
+        updateUserAwknoledgement = 'INSERT INTO beta_testers (user_id, acknowledge_confidentiality) VALUES (%s, %s) ON CONFLICT (user_id) DO UPDATE SET (acknowledge_confidentiality)=ROW(EXCLUDED.acknowledge_confidentiality)'
+        data = (user_id, agreement)
+
+        with conn.cursor() as cursor:
+            cursor.execute(updateUserAwknoledgement, data)
+            conn.commit()
 
         if not agreement:
             abort(403)
 
-
-
+        return "Received"
 
         # Connect to database
         # Set agree to true
