@@ -279,6 +279,25 @@ def user_capture_session(user_id):
     
     if request.method == 'POST':
         skin_color_id_key = 'skin_color_id'
+
+        if skin_color_id_key not in request.form:
+            abort(403)
+
+        skin_color_id = request.form[skin_color_id_key]
+
+        try:
+            skin_color_id = int(skin_color_id)
+        except ValueError:
+            abort(403)
+
+        print('Skin Color Id :: {}'.format(skin_color_id))
+
+        insertNewSessionQuery = 'INSERT INTO capture_sessions (user_id, skin_color_id, out_of_date) VALUES (%s, %s, %s)'
+        data = (user_id, skin_color_id, False)
+
+        with conn.cursor() as cursor:
+            cursor.execute(insertNewSessionQuery, data)
+            conn.commit()
         
         # Save updated session info in db
 
