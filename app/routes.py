@@ -11,6 +11,7 @@ import os
 import stat
 import psycopg2
 from random import *
+import json
 
 #IMAGES_DIR = '/home/dmacewen/Projects/colorMatch/images/'
 IMAGES_DIR = '/home/dmacewen/Projects/tone/images/'
@@ -195,29 +196,51 @@ def users():
 
     abort(404)
 
-@webApp.route('/users/<user_id>', methods=['GET'])
+@webApp.route('/users/<user_id>', methods=['GET', 'POST'])
 def user(user_id):
+    if not isUserTokenValid(user_id, request):
+        abort(403)
+
     if request.method == 'GET':
-
-        if not isUserTokenValid(user_id, request):
-            abort(403)
-
         getUserSettingsQuery = 'SELECT settings FROM user_settings WHERE user_id=(%s)'
         data = (user_id, )
 
         with conn.cursor() as cursor:
             cursor.execute(getUserSettingsQuery, data)
-            user_settings = cursor.fetchone()
+            user_settings = cursor.fetchone()[0]
 
         print('Got User ({}) Settings {}'.format(user_id, user_settings))
 
         if user_settings is None:
             return jsonify({})
 
-        return user_settings
+        return jsonify(user_settings)
 
         # Connect to database
         # Return user settings and if beta user
+    
+    if request.method == 'POST':
+        settings_key = 'settings'
+        if settings_key not in request.form:
+            abort(403)
+
+        settings = request.form[settings_key]
+
+        try:
+            settings = json.loads(settings)
+        except ValueError:
+            abort(403)
+
+        print('SETTINGS :: {}'.format(settings))
+
+        updateUserSettingsQuery = 'INSERT INTO user_settings (user_id, settings) VALUES (%s, %s) ON CONFLICT (user_id) DO UPDATE SET (settings)=ROW(EXCLUDED.settings)'
+        data = (user_id, json.dumps(settings))
+
+        with conn.cursor() as cursor:
+            cursor.execute(updateUserSettingsQuery, data)
+            conn.commit()
+
+        return 'Success'
 
     abort(404)
 
