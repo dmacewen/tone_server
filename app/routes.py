@@ -28,39 +28,6 @@ try:
 
 except (Exception, psycopg2.Error) as error:
     print("Error while fetch data from Postrgesql", error)
-#finally:
-#    if conn:
-#        cursor.close()
-#        connection.close()
-#        print("Postgres Connection Closed")
-
-def getAndUpdateUserImageCount(userName):
-    print('Getting And Update User Image Count')
-    #Save state like a dangus
-    userImageCount = 0
-    newLines = []
-    #filePath = '/home/dmacewen/Projects/colorMatch/server/user_image_counter.txt';
-    filePath = IMAGES_DIR + userName + '/image_counter.txt'
-
-    imageCountFileExists = True
-    if not os.path.exists(filePath):
-        imageCountFileExists = False
-        
-
-    with open(filePath, 'r+') as f:
-        lines = f.readlines() #Should only be one value in file, the number of photos taken
-        if len(lines) != 0:
-            userImageCount = int(lines[0])
-
-        userImageCount = userImageCount + 1
-        f.seek(0)
-        f.write(str(userImageCount))
-        f.truncate()
-
-    if not imageCountFileExists:
-        os.chmod(filePath, 0o777)
-
-    return str(userImageCount)
 
 def isUserTokenValid(user_id, request, check_awknowledged_nda=True):
     # Does user_id exist?
@@ -365,48 +332,134 @@ def user_capture(user_id):
         # save metadata file and capture data in FS
         # save paths to data in DB
 
-        metadata = None
+        # PASSED IN:     user_id | session_id | app_version | device_id
+        # FILES:    capture_metadata | capture_data
+        # GENERATE: capture_id | capture_date | capture_path 
+
+        session_id_key = 'session_id'
+        app_version_key = 'app_version'
+        device_id_key = 'device_id'
+        metadata_key = 'metadata'
+
+        if session_id_key not in request.form:
+            print('No Session Id')
+            abort(403)
+
+        session_id = request.form[session_id_key]
+
+        try:
+            session_id = int(session_id)
+        except ValueError:
+            print('Invalid Session Id')
+            abort(403)
+
+        #Check that it is the most recent session... Or at least that session exists?
+        captureSessionQuery = 'SELECT skin_color_id, start_date, out_of_date FROM capture_sessions WHERE session_id=(%s) AND user_id=(%s)'
+        data = (session_id, user_id)
+
+        with conn.cursor() as cursor:
+            cursor.execute(captureSessionQuery, data)
+            sessionData = cursor.fetchone()
+
+        if sessionData is None:
+            print('Could not find capture session for user')
+            abort(403)
+
+        if app_version_key not in request.form:
+            print('No App Version')
+            abort(403)
+
+        app_version = request.form[app_version_key]
+
+        if device_id_key not in request.form:
+            print('No Device Id')
+            abort(403)
+
+        device_id = request.form[device_id_key]
+
+        if metadata_key not in request.form:
+            print('No Metadata')
+            abort(403)
+
+        metadata = request.form[metadata_key]
+
+        try:
+            metadata = json.loads(metadata)
+        except ValueError:
+            abort(403)
+
+        print('Metadata :: {}'.format(json.dumps(metadata)))
+
+        #metadata = None
         images = []
         fileNames = [key for key in request.files.keys()]
-        print('FILE NAMES :: ' + str(fileNames))
+
         for fileName in fileNames:
-            if fileName == 'metadata':
-                metadata = request.files[fileName]
-            else:
-                images.append([fileName, request.files[fileName]])
-                
+            #if fileName == 'metadata':
+            #    metadata = request.files[fileName]
+            images.append([fileName, request.files[fileName]])
 
-        userImageCount = getAndUpdateUserImageCount(user_id)
-        userImageSetName = secure_filename(user_id + userImageCount)
+        if not images:
+            print('No Images')
+            abort(403)
 
-        dirPath = IMAGES_DIR + '/' + user_id + '/' + userImageSetName + '/'
+        # Base File Structure
+        # /<user_id>/
+        # /<user_id>/<session_id>/
+        # /<user_id>/<sessoin_id>/<capture_id>/[1-8, 1-8_[left, right]Eye, metadata].[PNG, JSON]
 
-        if not os.path.exists(dirPath):
-            os.mkdir(dirPath)
+        insertNewCaptureQuery = 'INSERT INTO captures (session_id, user_id, app_version, device_id, capture_metadata) VALUES (%s, %s, %s, %s, %s) RETURNING capture_id'
+        data = (session_id, user_id, app_version, device_id, json.dumps(metadata))
 
-        os.chmod(dirPath, 0o777)
+        with conn.cursor() as cursor:
+            cursor.execute(insertNewCaptureQuery, data)
+            capture_id = cursor.fetchone()[0]
+            conn.commit()
+
+        print('Capture ID :: {}'.format(capture_id))
+
+        #capturePath = os.path.join(IMAGES_DIR, str(user_id), str(session_id), str(capture_id))
+
+        userPath = os.path.join(IMAGES_DIR, str(user_id))
+        if not os.path.exists(userPath):
+            os.mkdir(userPath)
+            os.chmod(userPath, 0o777)
+            
+        userSessionPath = os.path.join(userPath, str(session_id))
+        if not os.path.exists(userSessionPath):
+            os.mkdir(userSessionPath)
+            os.chmod(userSessionPath, 0o777)
+
+        userSessionCapturePath = os.path.join(userSessionPath, str(capture_id))
+        if not os.path.exists(userSessionCapturePath):
+            os.mkdir(userSessionCapturePath)
+            os.chmod(userSessionCapturePath, 0o777)
 
         for imageName, image in images:
-            imagePath = dirPath + userImageSetName + '-' + imageName + '.PNG'
+            secureImageName = secure_filename(imageName + '.PNG')
+            imagePath = os.path.join(userSessionCapturePath, secureImageName)
             image.save(imagePath)
             os.chmod(imagePath, 0o777)
 
-        metadataPath = dirPath + userImageSetName + '-metadata.txt'
-        print("METADATA PATH :: " + metadataPath)
-        metadata.save(metadataPath)
-        print("Metadata Saved")
-        os.chmod(metadataPath, 0o777)
-        print("Metadata Access Changed")
+        metadataPath = os.path.join(userSessionCapturePath, 'metadata.json')
+        print("Metadata path :: {}".format(metadataPath))
 
-        try:
-            colorAndFluxish = runSteps.run(user_id, userImageSetName);
-        except Exception as e:
-            print("Error :: " + str(e))
-            return str(e)
-        except:
-            return 'And Unknown error occured'
-        else:
-            print("Success")
-            return jsonify(colorAndFluxish)
+        with open(metadataPath, 'w') as f:
+            json.dump(metadata, f)
+
+        os.chmod(metadataPath, 0o777)
+
+        return userSessionCapturePath
+
+        #try:
+        #    colorAndFluxish = runSteps.run(user_id, userImageSetName);
+        #except Exception as e:
+        #    print("Error :: " + str(e))
+        #    return str(e)
+        #except:
+        #    return 'And Unknown error occured'
+        #else:
+        #    print("Success")
+        #    return jsonify(colorAndFluxish)
 
     abort(404)
