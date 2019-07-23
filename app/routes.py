@@ -227,10 +227,8 @@ def user_agreement(user_id):
 
         print('AGREEMENT :: {}'.format(agreement))
 
-
-
-        isTrue = agreement == 'true'
-        isFalse = agreement == 'false'
+        isTrue = ((agreement == 'true') or (agreement == "1"))
+        isFalse = ((agreement == 'false') or (agreement == "0"))
 
         if (not isTrue) and (not isFalse):
             abort(403)
