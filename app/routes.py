@@ -295,7 +295,7 @@ def user_capture_session(user_id):
     # Return skin color id
     # Return start database
     # Return number of captures in this session
-    getCurrentCaptureSession = 'SELECT session_id, skin_color_id, start_date, out_of_date FROM capture_sessions WHERE user_id=(%s) AND start_date = (SELECT max(start_date) FROM capture_sessions WHERE user_id=(%s))'
+    getCurrentCaptureSession = 'SELECT session_id, skin_color_id, start_date, out_of_date, NOW() FROM capture_sessions WHERE user_id=(%s) AND start_date = (SELECT max(start_date) FROM capture_sessions WHERE user_id=(%s))'
     data = (user_id, user_id)
 
     with conn.cursor() as cursor:
@@ -311,6 +311,7 @@ def user_capture_session(user_id):
     currentUserSessionObj['skin_color_id'] = currentUserSession[1]
     currentUserSessionObj['start_date'] = currentUserSession[2]
     currentUserSessionObj['out_of_date'] = currentUserSession[3]
+    currentUserSessionObj['now'] = currentUserSession[4]
 
     return jsonify(currentUserSessionObj)
 
