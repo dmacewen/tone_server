@@ -295,7 +295,7 @@ def user_capture_session(user_id):
     # Return skin color id
     # Return start database
     # Return number of captures in this session
-    getCurrentCaptureSession = 'SELECT session_id, skin_color_id, start_date, out_of_date, NOW() FROM capture_sessions WHERE user_id=(%s) AND start_date = (SELECT max(start_date) FROM capture_sessions WHERE user_id=(%s))'
+    getCurrentCaptureSession = 'SELECT session_id, skin_color_id, start_date, out_of_date, NOW()::TIMESTAMP FROM capture_sessions WHERE user_id=(%s) AND start_date = (SELECT max(start_date) FROM capture_sessions WHERE user_id=(%s))'
     data = (user_id, user_id)
 
     with conn.cursor() as cursor:
@@ -309,11 +309,16 @@ def user_capture_session(user_id):
     currentUserSessionObj = {}
     currentUserSessionObj['session_id'] = currentUserSession[0]
     currentUserSessionObj['skin_color_id'] = currentUserSession[1]
-    currentUserSessionObj['start_date'] = currentUserSession[2]
+    currentUserSessionObj['start_date'] = str(currentUserSession[2]) #Convert dates to strings so jsonify doesnt mess with them
     currentUserSessionObj['out_of_date'] = currentUserSession[3]
-    currentUserSessionObj['now'] = currentUserSession[4]
+    currentUserSessionObj['now'] = str(currentUserSession[4])
 
-    return jsonify(currentUserSessionObj)
+    print("Now :: {}".format(currentUserSessionObj['now']))
+
+    temp = jsonify(currentUserSessionObj)
+
+    print("Json :: {}".format(json.dumps(temp.json)))
+    return temp
 
 @webApp.route('/users/<user_id>/capture', methods=['POST'])
 def user_capture(user_id):
