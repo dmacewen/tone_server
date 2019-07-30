@@ -105,6 +105,11 @@ def isCaptureSessionValid(user_id, session_id):
 def index():
     return webApp.send_static_file('index.html')
 
+#https://developer.apple.com/documentation/security/password_autofill/setting_up_an_app_s_associated_domains
+@webApp.route('/apple-app-site-association')
+def apple_app_site_association():
+    return webApp.send_static_file('apple-app-site-association')
+
 @webApp.route('/users', methods=['POST'])
 def users():
     if request.method == 'POST':
