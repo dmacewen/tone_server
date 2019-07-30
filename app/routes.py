@@ -4,6 +4,7 @@ sys.path.append('/home/dmacewen/Projects/tone/tone_colorMatch/src/')
 
 from flask import request, abort, jsonify
 from werkzeug import secure_filename
+from werkzeug.datastructures import FileStorage
 from app import app as webApp
 import runSteps
 import cv2
@@ -328,6 +329,27 @@ def user_capture(user_id):
         if not isUserTokenValid(user_id, request):
             abort(403)
 
+        images = []
+        parameters = None
+        fileNames = [key for key in request.files.keys()]
+        
+        #Fetch Parameters here because they are passed in a file. Apparently multipart file uploads dont support parametes??
+        for fileName in fileNames:
+            if fileName == 'parameters':
+                parameters = request.files[fileName]
+            else:
+                images.append([fileName, request.files[fileName]])
+
+        try:
+            parameters = json.loads(parameters.read())
+        except ValueError:
+            print('Could not load parameters!')
+            abort(403)
+
+        if not images:
+            print('No Images')
+            abort(403)
+
         #if not os.path.exists(IMAGES_DIR + '/' + user_id):
         #    return "User " + user_id + " does not exist!"
 
@@ -336,20 +358,20 @@ def user_capture(user_id):
         # save metadata file and capture data in FS
         # save paths to data in DB
 
-        # PASSED IN:     user_id | session_id | app_version | device_id
+        # PASSED IN:     user_id | session_id | app_version | device_info
         # FILES:    capture_metadata | capture_data
         # GENERATE: capture_id | capture_date | capture_path 
 
         session_id_key = 'session_id'
         app_version_key = 'app_version'
-        device_id_key = 'device_id'
+        device_info_key = 'device_info'
         metadata_key = 'metadata'
 
-        if session_id_key not in request.form:
+        if session_id_key not in parameters:
             print('No Session Id')
             abort(403)
 
-        session_id = request.form[session_id_key]
+        session_id = parameters[session_id_key]
 
         try:
             session_id = int(session_id)
@@ -369,51 +391,49 @@ def user_capture(user_id):
             print('Could not find capture session for user')
             abort(403)
 
-        if app_version_key not in request.form:
+        if app_version_key not in parameters:
             print('No App Version')
             abort(403)
 
-        app_version = request.form[app_version_key]
+        app_version = parameters[app_version_key]
 
-        if device_id_key not in request.form:
-            print('No Device Id')
+        if device_info_key not in parameters:
+            print('No Device Info')
             abort(403)
 
-        device_id = request.form[device_id_key]
+        device_info = parameters[device_info_key]
 
-        if metadata_key not in request.form:
+        try:
+            device_info = json.loads(device_info)
+        except ValueError:
+            print('Could Not Load Device Info')
+            abort(403)
+
+        print('Device Info :: {}'.format(json.dumps(device_info)))
+
+        if metadata_key not in parameters:
             print('No Metadata')
             abort(403)
 
-        metadata = request.form[metadata_key]
+        metadata = parameters[metadata_key]
 
         try:
             metadata = json.loads(metadata)
         except ValueError:
+            print('Could Not Metadata')
             abort(403)
 
         print('Metadata :: {}'.format(json.dumps(metadata)))
 
         #metadata = None
-        images = []
-        fileNames = [key for key in request.files.keys()]
-
-        for fileName in fileNames:
-            #if fileName == 'metadata':
-            #    metadata = request.files[fileName]
-            images.append([fileName, request.files[fileName]])
-
-        if not images:
-            print('No Images')
-            abort(403)
 
         # Base File Structure
         # /<user_id>/
         # /<user_id>/<session_id>/
         # /<user_id>/<sessoin_id>/<capture_id>/[1-8, 1-8_[left, right]Eye, metadata].[PNG, JSON]
 
-        insertNewCaptureQuery = 'INSERT INTO captures (session_id, user_id, app_version, device_id, capture_metadata) VALUES (%s, %s, %s, %s, %s) RETURNING capture_id'
-        data = (session_id, user_id, app_version, device_id, json.dumps(metadata))
+        insertNewCaptureQuery = 'INSERT INTO captures (session_id, user_id, app_version, device_info, capture_metadata) VALUES (%s, %s, %s, %s, %s) RETURNING capture_id'
+        data = (session_id, user_id, app_version, json.dumps(device_info), json.dumps(metadata))
 
         with conn.cursor() as cursor:
             cursor.execute(insertNewCaptureQuery, data)
