@@ -171,7 +171,7 @@ def users():
 
 @webApp.route('/users/<user_id>', methods=['GET', 'POST'])
 def user(user_id):
-    if not isUserTokenValid(user_id, request):
+    if not isUserTokenValid(user_id, request, False):
         abort(403)
 
     if request.method == 'GET':
@@ -180,7 +180,12 @@ def user(user_id):
 
         with conn.cursor() as cursor:
             cursor.execute(getUserSettingsQuery, data)
-            user_settings = cursor.fetchone()[0]
+            possible_user_settings = cursor.fetchone()
+
+            if possible_user_settings is None:
+                user_settings = None
+            else:
+                user_settings = possible_user_settings[0]
 
         print('Got User ({}) Settings {}'.format(user_id, user_settings))
 
@@ -478,17 +483,18 @@ def user_capture(user_id):
 
         os.chmod(metadataPath, 0o777)
 
-        return userSessionCapturePath
+        #return userSessionCapturePath
 
-        #try:
-        #    colorAndFluxish = runSteps.run(user_id, userImageSetName);
-        #except Exception as e:
-        #    print("Error :: " + str(e))
-        #    return str(e)
-        #except:
-        #    return 'And Unknown error occured'
-        #else:
-        #    print("Success")
-        #    return jsonify(colorAndFluxish)
+        try:
+            #colorAndFluxish = runSteps.run(user_id, userImageSetName);
+            colorAndFluxish = runSteps.run2(user_id);
+        except Exception as e:
+            print("Error :: " + str(e))
+            return str(e)
+        except:
+            return 'And Unknown error occured'
+        else:
+            print("Success")
+            return jsonify(colorAndFluxish)
 
     abort(404)
