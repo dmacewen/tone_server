@@ -5,7 +5,7 @@
 from flask import request, abort, jsonify
 from werkzeug import secure_filename
 from werkzeug.datastructures import FileStorage
-from app import app as webApp
+from application import application as webApp
 #import runSteps
 #import cv2
 import os #Eventually replace by saving to s3
@@ -22,10 +22,11 @@ IMAGES_DIR = '/home/dmacewen/Projects/tone/images/'
 
 try:
     #Do not love storing password in plain text in code....
-    conn = psycopg2.connect(dbname="tone",
-                            user="postgres",
-                            port="5434",
-                            password="dirty vent unroof")
+#    conn = psycopg2.connect(dbname="tone",
+#                            user="postgres",
+#                            port="5434",
+#                            password="dirty vent unroof")
+    print('Setup later with aws rds')
 
 except (Exception, psycopg2.Error) as error:
     print("Error while fetch data from Postrgesql", error)
