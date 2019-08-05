@@ -1,16 +1,16 @@
-import sys
+#import sys
 #sys.path.append('/home/dmacewen/Projects/colorMatch/service')
-sys.path.append('/home/dmacewen/Projects/tone/tone_colorMatch/src/')
+#sys.path.append('/home/dmacewen/Projects/tone/tone_colorMatch/src/')
 
 from flask import request, abort, jsonify
 from werkzeug import secure_filename
 from werkzeug.datastructures import FileStorage
 from app import app as webApp
-import runSteps
-import cv2
-import os
-import stat
-import psycopg2
+#import runSteps
+#import cv2
+import os #Eventually replace by saving to s3
+#import stat
+import psycopg2 #Update to point to AWS RDS
 from random import *
 import json
 
@@ -487,7 +487,10 @@ def user_capture(user_id):
 
         try:
             #colorAndFluxish = runSteps.run(user_id, userImageSetName);
-            colorAndFluxish = runSteps.run2(user_id);
+            #colorAndFluxish = runSteps.run2(user_id);
+            print("ADD TASK TO SQS")
+            colorAndFluxish = {}
+            colorAndFluxish["todo"] = "add task to sqs"
         except Exception as e:
             print("Error :: " + str(e))
             return str(e)
