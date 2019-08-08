@@ -28,18 +28,18 @@ sqs_queue = sqs_resource.Queue('https://sqs.us-west-2.amazonaws.com/751119984625
 try:
     #Do not love storing password in plain text in code....
     #Maybe export to environemt variables?
-    conn = psycopg2.connect(dbname="tone",
-                            user="postgres",
-                            port="5434",
-                            password="dirty vent unroof")
+#    conn = psycopg2.connect(dbname="tone",
+#                            user="postgres",
+#                            port="5434",
+#                            password="dirty vent unroof")
    #print('Setup later with aws rds')
 #TEMP
-#    if 'RDS_HOSTNAME' in os.environ:
-#        conn = psycopg2.connect(dbname=os.environ['RDS_DB_NAME'],
-#                                user=os.environ['RDS_USERNAME'],
-#                                password=os.environ['RDS_PASSWORD'],
-#                                host=os.environ['RDS_HOSTNAME'],
-#                                port=os.environ['RDS_PORT'])
+    if 'RDS_HOSTNAME' in os.environ:
+        conn = psycopg2.connect(dbname=os.environ['RDS_DB_NAME'],
+                                user=os.environ['RDS_USERNAME'],
+                                password=os.environ['RDS_PASSWORD'],
+                                host=os.environ['RDS_HOSTNAME'],
+                                port=os.environ['RDS_PORT'])
 
 
 except (Exception, psycopg2.Error) as error:
@@ -353,8 +353,8 @@ def user_capture(user_id):
         #return "Disabled.... For now"
 
         #TEMP
-        #if not isUserTokenValid(user_id, request):
-        #    abort(403)
+        if not isUserTokenValid(user_id, request):
+            abort(403)
 
         images = []
         parameters = None
@@ -471,7 +471,7 @@ def user_capture(user_id):
         print('Capture ID :: {}'.format(capture_id))
 
         userSessionCapturePath = '{}/{}/{}'.format(str(user_id), str(session_id), str(capture_id))
-        print('User Session Capture Path :: {}'.format(userSessionCapturePath))
+        print('User Session Capture Path :: {} - {}'.format(TONE_USER_CAPTURES_BUCKET, userSessionCapturePath))
 
         for imageName, image in images:
             secureImageName = secure_filename(imageName + '.png')
