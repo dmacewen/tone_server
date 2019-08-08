@@ -13,20 +13,34 @@ import os #Eventually replace by saving to s3
 import psycopg2 #Update to point to AWS RDS
 from random import *
 import json
+import boto3
 
 #IMAGES_DIR = '/home/dmacewen/Projects/colorMatch/images/'
 IMAGES_DIR = '/home/dmacewen/Projects/tone/images/'
+TONE_USER_CAPTURES_BUCKET = 'tone-user-captures'
+s3_client = boto3.client('s3')
+sqs_resource = boto3.resource('sqs')
+sqs_queue = sqs_resource.Queue('https://sqs.us-west-2.amazonaws.com/751119984625/awseb-e-qmun67ugcv-stack-AWSEBWorkerQueue-94V16AVJXYBL')
 
 #CALIBRATIONS_DIR = '/home/dmacewen/Projects/colorMatch/calibrations/'
 #CALIBRATION_CAPTURE_COUNT = 16
 
 try:
     #Do not love storing password in plain text in code....
-#    conn = psycopg2.connect(dbname="tone",
-#                            user="postgres",
-#                            port="5434",
-#                            password="dirty vent unroof")
-    print('Setup later with aws rds')
+    #Maybe export to environemt variables?
+    conn = psycopg2.connect(dbname="tone",
+                            user="postgres",
+                            port="5434",
+                            password="dirty vent unroof")
+   #print('Setup later with aws rds')
+#TEMP
+#    if 'RDS_HOSTNAME' in os.environ:
+#        conn = psycopg2.connect(dbname=os.environ['RDS_DB_NAME'],
+#                                user=os.environ['RDS_USERNAME'],
+#                                password=os.environ['RDS_PASSWORD'],
+#                                host=os.environ['RDS_HOSTNAME'],
+#                                port=os.environ['RDS_PORT'])
+
 
 except (Exception, psycopg2.Error) as error:
     print("Error while fetch data from Postrgesql", error)
@@ -336,13 +350,16 @@ def user_capture_session(user_id):
 def user_capture(user_id):
 
     if request.method == 'POST':
+        #return "Disabled.... For now"
 
-        if not isUserTokenValid(user_id, request):
-            abort(403)
+        #TEMP
+        #if not isUserTokenValid(user_id, request):
+        #    abort(403)
 
         images = []
         parameters = None
         fileNames = [key for key in request.files.keys()]
+        print('FILE NAMES :: {}'.format(fileNames))
         
         #Fetch Parameters here because they are passed in a file. Apparently multipart file uploads dont support parametes??
         for fileName in fileNames:
@@ -453,45 +470,32 @@ def user_capture(user_id):
 
         print('Capture ID :: {}'.format(capture_id))
 
-        #capturePath = os.path.join(IMAGES_DIR, str(user_id), str(session_id), str(capture_id))
-
-        userPath = os.path.join(IMAGES_DIR, str(user_id))
-        if not os.path.exists(userPath):
-            os.mkdir(userPath)
-            os.chmod(userPath, 0o777)
-            
-        userSessionPath = os.path.join(userPath, str(session_id))
-        if not os.path.exists(userSessionPath):
-            os.mkdir(userSessionPath)
-            os.chmod(userSessionPath, 0o777)
-
-        userSessionCapturePath = os.path.join(userSessionPath, str(capture_id))
-        if not os.path.exists(userSessionCapturePath):
-            os.mkdir(userSessionCapturePath)
-            os.chmod(userSessionCapturePath, 0o777)
+        userSessionCapturePath = '{}/{}/{}'.format(str(user_id), str(session_id), str(capture_id))
+        print('User Session Capture Path :: {}'.format(userSessionCapturePath))
 
         for imageName, image in images:
-            secureImageName = secure_filename(imageName + '.PNG')
-            imagePath = os.path.join(userSessionCapturePath, secureImageName)
-            image.save(imagePath)
-            os.chmod(imagePath, 0o777)
+            secureImageName = secure_filename(imageName + '.png')
+            imagePath = '{}/{}'.format(userSessionCapturePath, secureImageName)
+            print('Image Path :: {}'.format(imagePath))
+            s3_client.put_object(Bucket=TONE_USER_CAPTURES_BUCKET, Key=imagePath, Body=image)
 
-        metadataPath = os.path.join(userSessionCapturePath, 'metadata.json')
+        metadataPath = '{}/{}'.format(userSessionCapturePath, 'metadata.json')
+        s3_client.put_object(Bucket=TONE_USER_CAPTURES_BUCKET, Key=metadataPath, Body=json.dumps(metadata))
         print("Metadata path :: {}".format(metadataPath))
-
-        with open(metadataPath, 'w') as f:
-            json.dump(metadata, f)
-
-        os.chmod(metadataPath, 0o777)
-
-        #return userSessionCapturePath
 
         try:
             #colorAndFluxish = runSteps.run(user_id, userImageSetName);
             #colorAndFluxish = runSteps.run2(user_id);
             print("ADD TASK TO SQS")
-            colorAndFluxish = {}
-            colorAndFluxish["todo"] = "add task to sqs"
+            #colorAndFluxish = {}
+            #colorAndFluxish["todo"] = "add task to sqs"
+            colorMatchMessage = {}
+            colorMatchMessage['user_id'] = user_id
+            colorMatchMessage['session_id'] = session_id
+            colorMatchMessage['capture_id'] = capture_id
+            colorMatchMessageJson = json.dumps(colorMatchMessage)
+            queue_response = sqs_queue.send_message(MessageBody=colorMatchMessageJson)
+            print('Queue Response :: {}'.format(queue_response))
         except Exception as e:
             print("Error :: " + str(e))
             return str(e)
@@ -499,6 +503,6 @@ def user_capture(user_id):
             return 'And Unknown error occured'
         else:
             print("Success")
-            return jsonify(colorAndFluxish)
+            return colorMatchMessageJson
 
     abort(404)
