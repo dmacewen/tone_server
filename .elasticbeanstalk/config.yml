@@ -1,0 +1,12 @@
+branch-defaults:
+  default:
+    environment: tone-server-env
+
+global:
+  application_name: tone-server
+  default_ec2_keyname: null
+  default_platform: arn:aws:elasticbeanstalk:us-west-2::platform/Python 3.6 running
+    on 64bit Amazon Linux/2.8.6
+  default_region: us-west-2
+  include_git_submodules: true
+  profile: eb-cli
