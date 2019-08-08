@@ -1,7 +1,8 @@
 branch-defaults:
+  beanstalk:
+    environment: tone-server-env
   default:
     environment: tone-server-env
-
 global:
   application_name: tone-server
   default_ec2_keyname: null
