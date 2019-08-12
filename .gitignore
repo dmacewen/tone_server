@@ -5,3 +5,4 @@
 #!.elasticbeanstalk/*.global.yml
 __pycache__/*
 application/__pycache__/*
+*.log

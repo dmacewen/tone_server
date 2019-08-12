@@ -14,7 +14,7 @@ import psycopg2 #Update to point to AWS RDS
 from random import *
 import json
 import boto3
-from logger import getLogger
+from application.logger import getLogger
 
 #IMAGES_DIR = '/home/dmacewen/Projects/colorMatch/images/'
 IMAGES_DIR = '/home/dmacewen/Projects/tone/images/'
@@ -198,7 +198,7 @@ def user(user_id):
         logger.info('Updating user settings for user_id {}'.format(user_id))
         settings_key = 'settings'
         if settings_key not in request.form:
-            logger.warning('Settings: settings_key not found in request form'))
+            logger.warning('Settings: settings_key not found in request form')
             abort(403)
 
         settings = request.form[settings_key]
@@ -206,7 +206,7 @@ def user(user_id):
         try:
             settings = json.loads(settings)
         except ValueError:
-            logger.warning('Settings: Could not load settings JSON'))
+            logger.warning('Settings: Could not load settings JSON')
             abort(403)
 
         updateUserSettingsQuery = 'INSERT INTO user_settings (user_id, settings) VALUES (%s, %s) ON CONFLICT (user_id) DO UPDATE SET (settings)=ROW(EXCLUDED.settings)'
@@ -233,7 +233,7 @@ def user_agreement(user_id):
         
         agreement_key = 'agree'
         if agreement_key not in request.form:
-            logger.warning('User Agreement: agreement_key not found in request form'))
+            logger.warning('User Agreement: agreement_key not found in request form')
             abort(403)
 
         agreement = request.form[agreement_key].lower()
@@ -274,7 +274,7 @@ def user_capture_session(user_id):
         skin_color_id_key = 'skin_color_id'
 
         if skin_color_id_key not in request.form:
-            logger.warning('Capture Session: skin_color_id_key not found in request form'))
+            logger.warning('Capture Session: skin_color_id_key not found in request form')
             abort(403)
 
         skin_color_id = request.form[skin_color_id_key]
@@ -340,11 +340,11 @@ def user_capture(user_id):
         try:
             parameters = json.loads(parameters.read())
         except ValueError:
-            logger.warning('Capture: Could not load parameters JSON'))
+            logger.warning('Capture: Could not load parameters JSON')
             abort(403)
 
         if not images:
-            logger.warning('Capture: No images in request'))
+            logger.warning('Capture: No images in request')
             abort(403)
 
         # PASSED IN:     user_id | session_id | app_version | device_info
@@ -357,7 +357,7 @@ def user_capture(user_id):
         metadata_key = 'metadata'
 
         if session_id_key not in parameters:
-            logger.warning('Capture: session_id_key not in parameters'))
+            logger.warning('Capture: session_id_key not in parameters')
             abort(403)
 
         session_id = parameters[session_id_key]
@@ -365,7 +365,7 @@ def user_capture(user_id):
         try:
             session_id = int(session_id)
         except ValueError:
-            logger.warning('Capture: Could not convert session_id to int'))
+            logger.warning('Capture: Could not convert session_id to int')
             abort(403)
 
         #Check that it is the most recent session... Or at least that session exists?
@@ -381,13 +381,13 @@ def user_capture(user_id):
             abort(403)
 
         if app_version_key not in parameters:
-            logger.warning('Capture: app_version_key not in parameters'))
+            logger.warning('Capture: app_version_key not in parameters')
             abort(403)
 
         app_version = parameters[app_version_key]
 
         if device_info_key not in parameters:
-            logger.warning('Capture: device_info_key not in parameters'))
+            logger.warning('Capture: device_info_key not in parameters')
             abort(403)
 
         device_info = parameters[device_info_key]
@@ -395,11 +395,11 @@ def user_capture(user_id):
         try:
             device_info = json.loads(device_info)
         except ValueError:
-            logger.warning('Capture: Could not load device info JSON'))
+            logger.warning('Capture: Could not load device info JSON')
             abort(403)
 
         if metadata_key not in parameters:
-            logger.warning('Capture: metadata_key not in parameters'))
+            logger.warning('Capture: metadata_key not in parameters')
             abort(403)
 
         metadata = parameters[metadata_key]
@@ -407,7 +407,7 @@ def user_capture(user_id):
         try:
             metadata = json.loads(metadata)
         except ValueError:
-            logger.warning('Capture: Could not load metadata JSON'))
+            logger.warning('Capture: Could not load metadata JSON')
             abort(403)
 
         # /<user_id>/<sessoin_id>/<capture_id>/[1-8, 1-8_[left, right]Eye, metadata].[PNG, JSON]
