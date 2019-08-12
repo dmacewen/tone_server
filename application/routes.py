@@ -105,7 +105,7 @@ def isCaptureSessionValid(user_id, session_id):
 @webApp.route('/')
 @webApp.route('/index')
 def index():
-    logger.info('Getting Root. Should not see this...')
+    logger.info('Getting Root')
     return webApp.send_static_file('index.html')
 
 #https://developer.apple.com/documentation/security/password_autofill/setting_up_an_app_s_associated_domains
