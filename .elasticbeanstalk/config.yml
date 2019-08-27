@@ -1,6 +1,8 @@
 branch-defaults:
   beanstalk:
     environment: tone-server-env
+  master:
+    environment: tone-server-env
   default:
     environment: tone-server-env
 global:
