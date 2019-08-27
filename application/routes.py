@@ -304,8 +304,17 @@ def user_capture_session(user_id):
         currentUserSession = cursor.fetchone()
 
     if currentUserSession is None:
-        logger.warning('Capture Session: No user capture session found for user_id {}'.format(user_id))
-        abort(404)
+        currentUserSessionObj = {}
+        currentUserSessionObj['session_id'] = 0
+        currentUserSessionObj['skin_color_id'] = 0
+        currentUserSessionObj['start_date'] = '2019-06-06 22:51:25.080722'
+        currentUserSessionObj['out_of_date'] = True
+        currentUserSessionObj['now'] = '2019-06-06 22:51:25.080722'
+        return jsonify(currentUserSessionObj)
+
+    #return jsonify(currentUserSessionObj)
+    #    logger.warning('Capture Session: No user capture session found for user_id {}'.format(user_id))
+    #    abort(404)
 
     currentUserSessionObj = {}
     currentUserSessionObj['session_id'] = currentUserSession[0]
