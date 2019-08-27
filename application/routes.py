@@ -265,7 +265,7 @@ def user_agreement(user_id):
 
 @webApp.route('/users/<user_id>/session', methods=['GET', 'POST'])
 def user_capture_session(user_id):
-    if not isUserTokenValid(user_id, request):
+    if not isUserTokenValid(user_id, request, False):
         logger.warning('User Not Valid :: user_id: {}'.format(user_id))
         abort(403)
     
