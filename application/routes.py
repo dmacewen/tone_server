@@ -21,7 +21,7 @@ IMAGES_DIR = '/home/dmacewen/Projects/tone/images/'
 TONE_USER_CAPTURES_BUCKET = 'tone-user-captures'
 s3_client = boto3.client('s3', 'us-west-2')
 sqs_resource = boto3.resource('sqs', 'us-west-2')
-sqs_queue = sqs_resource.Queue('https://sqs.us-west-2.amazonaws.com/751119984625/awseb-e-qmun67ugcv-stack-AWSEBWorkerQueue-94V16AVJXYBL')
+sqs_queue = sqs_resource.Queue('https://sqs.us-west-2.amazonaws.com/751119984625/awseb-e-qmun67ugcv-stack-AWSEBWorkerQueue-IDEJOD7KLNEV')
 logger = getLogger(__name__)
 
 try:
