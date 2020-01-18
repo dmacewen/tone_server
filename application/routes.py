@@ -1,19 +1,22 @@
+"""
+Defines the routes and handlers for the Tone server
+"""
+import os
+import json
+from random import random
 from flask import request, abort, jsonify
 from werkzeug import secure_filename
-from werkzeug.datastructures import FileStorage
-from application import application as webApp
-import os
 import psycopg2
-from random import *
-import json
 import boto3
+from application import application as webApp
 from application.logger import getLogger
+LOGGER = getLogger(__name__)
 
 TONE_USER_CAPTURES_BUCKET = 'tone-user-captures'
+
 s3_client = boto3.client('s3', 'us-west-2')
 sqs_resource = boto3.resource('sqs', 'us-west-2')
 sqs_queue = sqs_resource.Queue('https://sqs.us-west-2.amazonaws.com/751119984625/awseb-e-qmun67ugcv-stack-AWSEBWorkerQueue-IDEJOD7KLNEV')
-logger = getLogger(__name__)
 
 try:
     if 'RDS_HOSTNAME' in os.environ:
@@ -23,16 +26,20 @@ try:
                                 host=os.environ['RDS_HOSTNAME'],
                                 port=os.environ['RDS_PORT'])
 
-except (Exception, psycopg2.Error) as error:
-    logger.error("Error while fetch data from Postrgesql ::\n%s", error)
+except psycopg2.Error as error:
+    LOGGER.error("Error while fetch data from Postrgesql ::\n%s", error)
 
-def isUserTokenValid(user_id, request, check_awknowledged_nda=True):
-    logger.info('Validating User ID :: %s', user_id)
+def isUserTokenValid(user_id, user_request, check_acknowledged_nda=True):
+    """
+    Checks whether the user token is valid, returns TRUE if it is, FALSE otherwise
+        NOTE: options to check acknowledged nda. If it should check, function retuns TRUE if nda is acknowledged, FALSE otherwise
+    """
+    LOGGER.info('Validating User ID :: %s', user_id)
 
     try:
         user_id = int(user_id)
     except ValueError:
-        logger.warning('User Authentication: Could not convert user_id to int')
+        LOGGER.warning('User Authentication: Could not convert user_id to int')
         return False
 
     getUserTokenQuery = 'SELECT token FROM users WHERE user_id=(%s)'
@@ -43,34 +50,29 @@ def isUserTokenValid(user_id, request, check_awknowledged_nda=True):
         userToken = cursor.fetchone()
 
     token_key = 'token'
-    if token_key not in request.args:
-        logger.warning('User Authentication: token_key not in request args')
+    if token_key not in user_request.args:
+        LOGGER.warning('User Authentication: Token key not in user_request args')
         return False
 
-    recieved_token = request.args[token_key]
+    recieved_token = user_request.args[token_key]
 
     try:
         recieved_token = int(recieved_token)
     except ValueError:
-        logger.warning('User Authentication: Could not convert recieved_token to int')
+        LOGGER.warning('User Authentication: Could not convert recieved_token to int')
         return False
 
     stored_token = userToken[0]
 
-    logger.info('Received vs Stored :: %s vs %s', recieved_token, stored_token)
+    LOGGER.info('Received vs Stored :: %s vs %s', recieved_token, stored_token)
 
     if recieved_token != stored_token:
-        logger.info('Token is not valid!')
+        LOGGER.info('Token is not valid!')
         return False
 
-    logger.info('Token is valid!')
+    LOGGER.info('Token is valid!')
 
-    # Check is token valid
-
-    #if checkBetaNDA:
-        # Is Beta User? Is Confidentiality Awknowledged?
-        # SELECT * FROM beta_users WHERE user_id == user_id
-    if check_awknowledged_nda:
+    if check_acknowledged_nda:
         getUserAcknowledgementQuery = 'SELECT acknowledge_confidentiality FROM beta_testers WHERE user_id=(%s)'
         data = (user_id, )
 
@@ -79,47 +81,47 @@ def isUserTokenValid(user_id, request, check_awknowledged_nda=True):
             userAcknowledgement = cursor.fetchone()
 
         if userAcknowledgement is None:
-            logger.info('User Authentication: User has not acknowledge confidentiality')
+            LOGGER.info('User Authentication: User has not acknowledge confidentiality')
             return False
 
         userAcknowledgement = userAcknowledgement[0]
 
         if not userAcknowledgement:
-            logger.info('User Authentication: User did not agree to confidentiality')
+            LOGGER.info('User Authentication: User did not agree to confidentiality')
             return False
 
     return True
 
-def isCaptureSessionValid(user_id, session_id):
-    return False
-
 @webApp.route('/')
 @webApp.route('/index')
 def index():
-    logger.info('Getting Root')
+    """Returnsindex.html"""
+    LOGGER.info('Getting Root')
     return webApp.send_static_file('index.html')
 
 #https://developer.apple.com/documentation/security/password_autofill/setting_up_an_app_s_associated_domains
 @webApp.route('/apple-app-site-association')
 def apple_app_site_association():
-    logger.info('Getting apple web credientials')
+    """Return apple app site association - Apple security measure for password autofill"""
+    LOGGER.info('Getting apple web credientials')
     return webApp.send_static_file('apple-app-site-association')
 
 @webApp.route('/users', methods=['POST'])
 def users():
+    """Update user"""
     if request.method == 'POST':
-        logger.info('Got login request')
+        LOGGER.info('Got login request')
         email_key = 'email'
         password_key = 'password'
 
         if email_key not in request.form:
-            logger.warning('Login: Email key not in request form')
+            LOGGER.warning('Login: Email key not in request form')
             abort(403)
 
         email = request.form[email_key]
 
         if password_key not in request.form:
-            logger.warning('Login: Password key not in request form')
+            LOGGER.warning('Login: Password key not in request form')
             abort(403)
 
         password = request.form[password_key]
@@ -134,7 +136,7 @@ def users():
         isAuthentic = (user is not None) and (user[1] == password)
 
         if not isAuthentic:
-            logger.warning('Login: User is not authentic')
+            LOGGER.warning('Login: User is not authentic')
             abort(403)
 
         user_id = user[0]
@@ -153,17 +155,19 @@ def users():
 
         return jsonify(response)
 
-    logger.warning('No matching Request Method in \'/users\' for %s', request.method)
+    LOGGER.warning('No matching Request Method in \'/users\' for %s', request.method)
     abort(404)
+    return None
 
-@webApp.route('/users/<user_id>',  methods=['GET',  'POST'])
+@webApp.route('/users/<user_id>', methods=['GET', 'POST'])
 def user(user_id):
+    """Updates user settings"""
     if not isUserTokenValid(user_id, request, False):
-        logger.warning('User Not Valid :: user_id: %s', user_id)
+        LOGGER.warning('User Not Valid :: user_id: %s', user_id)
         abort(403)
 
     if request.method == 'GET':
-        logger.info('Getting user settings for user_id %s', user_id)
+        LOGGER.info('Getting user settings for user_id %s', user_id)
         getUserSettingsQuery = 'SELECT settings FROM user_settings WHERE user_id=(%s)'
         data = (user_id, )
 
@@ -177,19 +181,16 @@ def user(user_id):
                 user_settings = possible_user_settings[0]
 
         if user_settings is None:
-            logger.info('Settings: No user settings for user_id :: %s', user_id)
+            LOGGER.info('Settings: No user settings for user_id :: %s', user_id)
             return jsonify({})
 
         return jsonify(user_settings)
 
-        # Connect to database
-        # Return user settings and if beta user
-
     if request.method == 'POST':
-        logger.info('Updating user settings for user_id %s', user_id)
+        LOGGER.info('Updating user settings for user_id %s', user_id)
         settings_key = 'settings'
         if settings_key not in request.form:
-            logger.warning('Settings: settings_key not found in request form')
+            LOGGER.warning('Settings: settings_key not found in request form')
             abort(403)
 
         settings = request.form[settings_key]
@@ -197,10 +198,14 @@ def user(user_id):
         try:
             settings = json.loads(settings)
         except ValueError:
-            logger.warning('Settings: Could not load settings JSON')
+            LOGGER.warning('Settings: Could not load settings JSON')
             abort(403)
 
-        updateUserSettingsQuery = 'INSERT INTO user_settings (user_id, settings) VALUES (%s, %s) ON CONFLICT (user_id) DO UPDATE SET (settings)=ROW(EXCLUDED.settings)'
+        updateUserSettingsQuery = ('INSERT INTO user_settings (user_id, settings)',
+                                   'VALUES (%s, %s)',
+                                   'ON CONFLICT (user_id)'
+                                   'DO UPDATE SET (settings)=ROW(EXCLUDED.settings)')
+
         data = (user_id, json.dumps(settings))
 
         with conn.cursor() as cursor:
@@ -209,35 +214,39 @@ def user(user_id):
 
         return 'Success'
 
-    logger.warning('No matching Request Method in \'/users/%s\' for %s', user_id, request.method)
+    LOGGER.warning('No matching Request Method in \'/users/%s\' for %s', user_id, request.method)
     abort(404)
 
-@webApp.route('/users/<user_id>/agree',  methods=['PUT'])
+@webApp.route('/users/<user_id>/agree', methods=['PUT'])
 def user_agreement(user_id):
+    """Updates user agreement"""
     if request.method == 'PUT':
-        logger.info('Updating User Agreement')
+        LOGGER.info('Updating User Agreement')
 
         if not isUserTokenValid(user_id, request, False):
-            logger.warning('User Not Valid :: user_id: %s', user_id)
+            LOGGER.warning('User Not Valid :: user_id: %s', user_id)
             abort(403)
 
         agreement_key = 'agree'
         if agreement_key not in request.form:
-            logger.warning('User Agreement: agreement_key not found in request form')
+            LOGGER.warning('User Agreement: agreement_key not found in request form')
             abort(403)
 
         agreement = request.form[agreement_key].lower()
 
-        isTrue = ((agreement == 'true') or (agreement == "1"))
-        isFalse = ((agreement == 'false') or (agreement == "0"))
+        isTrue = agreement in ('true', '1')
+        isFalse = agreement in ('false', '0')
 
         if (not isTrue) and (not isFalse):
-            logger.warning('User Agreement: Could not convert Boolean')
+            LOGGER.warning('User Agreement: Could not convert Boolean')
             abort(403)
 
         agreement = isTrue
 
-        updateUserAwknoledgement = 'INSERT INTO beta_testers (user_id, acknowledge_confidentiality) VALUES (%s, %s) ON CONFLICT (user_id) DO UPDATE SET (acknowledge_confidentiality)=ROW(EXCLUDED.acknowledge_confidentiality)'
+        updateUserAwknoledgement = ('INSERT INTO beta_testers (user_id, acknowledge_confidentiality)',
+                                    'VALUES (%s, %s)',
+                                    'ON CONFLICT (user_id)'
+                                    'DO UPDATE SET (acknowledge_confidentiality)=ROW(EXCLUDED.acknowledge_confidentiality)')
         data = (user_id, agreement)
 
         with conn.cursor() as cursor:
@@ -245,26 +254,27 @@ def user_agreement(user_id):
             conn.commit()
 
         if not agreement:
-            logger.info('User did not agree to agreement, user_id :: %s', user_id)
+            LOGGER.info('User did not agree to agreement, user_id :: %s', user_id)
             abort(403)
 
         return "Received"
 
-    logger.warning('No matching Request Method in \'/users/%s/agree\' for %s', user_id, request.method)
+    LOGGER.warning('No matching Request Method in \'/users/%s/agree\' for %s', user_id, request.method)
     abort(404)
 
-@webApp.route('/users/<user_id>/session',  methods=['GET',  'POST'])
+@webApp.route('/users/<user_id>/session', methods=['GET', 'POST'])
 def user_capture_session(user_id):
+    """Returns or updates the user's capture session"""
     if not isUserTokenValid(user_id, request, False):
-        logger.warning('User Not Valid :: user_id: %s', user_id)
+        LOGGER.warning('User Not Valid :: user_id: %s', user_id)
         abort(403)
 
     if request.method == 'POST':
-        logger.info('Creating new capture session for user_id :: %s', user_id)
+        LOGGER.info('Creating new capture session for user_id :: %s', user_id)
         skin_color_id_key = 'skin_color_id'
 
         if skin_color_id_key not in request.form:
-            logger.warning('Capture Session: skin_color_id_key not found in request form')
+            LOGGER.warning('Capture Session: skin_color_id_key not found in request form')
             abort(403)
 
         skin_color_id = request.form[skin_color_id_key]
@@ -272,7 +282,7 @@ def user_capture_session(user_id):
         try:
             skin_color_id = int(skin_color_id)
         except ValueError:
-            logger.warning('Capture Session: Could not convert skin_color_id to int')
+            LOGGER.warning('Capture Session: Could not convert skin_color_id to int')
             abort(403)
 
         insertNewSessionQuery = 'INSERT INTO capture_sessions (user_id, skin_color_id, out_of_date) VALUES (%s, %s, %s)'
@@ -286,7 +296,9 @@ def user_capture_session(user_id):
 
     # GET and POST both return same info
 
-    getCurrentCaptureSession = 'SELECT session_id, skin_color_id, start_date, out_of_date, NOW()::TIMESTAMP FROM capture_sessions WHERE user_id=(%s) AND start_date = (SELECT max(start_date) FROM capture_sessions WHERE user_id=(%s))'
+    getCurrentCaptureSession = ('SELECT session_id, skin_color_id, start_date, out_of_date, NOW()::TIMESTAMP FROM capture_sessions',
+                                'WHERE user_id=(%s) AND start_date = (SELECT max(start_date)'
+                                'FROM capture_sessions WHERE user_id=(%s))')
     data = (user_id, user_id)
 
     with conn.cursor() as cursor:
@@ -302,10 +314,6 @@ def user_capture_session(user_id):
         currentUserSessionObj['now'] = '2019-06-06 22:51:25.080722'
         return jsonify(currentUserSessionObj)
 
-    #return jsonify(currentUserSessionObj)
-    #    logger.warning('Capture Session: No user capture session found for user_id {}'.format(user_id))
-    #    abort(404)
-
     currentUserSessionObj = {}
     currentUserSessionObj['session_id'] = currentUserSession[0]
     currentUserSessionObj['skin_color_id'] = currentUserSession[1]
@@ -317,12 +325,13 @@ def user_capture_session(user_id):
 
 @webApp.route('/users/<user_id>/capture', methods=['POST'])
 def user_capture(user_id):
+    """Adds a new capture for the user"""
 
     if request.method == 'POST':
-        logger.info('Received new user capture')
+        LOGGER.info('Received new user capture')
 
         if not isUserTokenValid(user_id, request):
-            logger.warning('User Not Valid :: user_id: %s', user_id)
+            LOGGER.warning('User Not Valid :: user_id: %s', user_id)
             abort(403)
 
         images = []
@@ -339,16 +348,16 @@ def user_capture(user_id):
         try:
             parameters = json.loads(parameters.read())
         except ValueError:
-            logger.warning('Capture: Could not load parameters JSON')
+            LOGGER.warning('Capture: Could not load parameters JSON')
             abort(403)
 
         if not images:
-            logger.warning('Capture: No images in request')
+            LOGGER.warning('Capture: No images in request')
             abort(403)
 
         # PASSED IN:     user_id | session_id | app_version | device_info
         # FILES:    capture_metadata | capture_data
-        # GENERATE: capture_id | capture_date | capture_path 
+        # GENERATE: capture_id | capture_date | capture_path
 
         session_id_key = 'session_id'
         app_version_key = 'app_version'
@@ -356,7 +365,7 @@ def user_capture(user_id):
         metadata_key = 'metadata'
 
         if session_id_key not in parameters:
-            logger.warning('Capture: session_id_key not in parameters')
+            LOGGER.warning('Capture: session_id_key not in parameters')
             abort(403)
 
         session_id = parameters[session_id_key]
@@ -364,7 +373,7 @@ def user_capture(user_id):
         try:
             session_id = int(session_id)
         except ValueError:
-            logger.warning('Capture: Could not convert session_id to int')
+            LOGGER.warning('Capture: Could not convert session_id to int')
             abort(403)
 
         #Check that it is the most recent session... Or at least that session exists?
@@ -376,17 +385,17 @@ def user_capture(user_id):
             sessionData = cursor.fetchone()
 
         if sessionData is None:
-            logger.warning('Capture: could not find capture session for user_id %s', user_id)
+            LOGGER.warning('Capture: could not find capture session for user_id %s', user_id)
             abort(403)
 
         if app_version_key not in parameters:
-            logger.warning('Capture: app_version_key not in parameters')
+            LOGGER.warning('Capture: app_version_key not in parameters')
             abort(403)
 
         app_version = parameters[app_version_key]
 
         if device_info_key not in parameters:
-            logger.warning('Capture: device_info_key not in parameters')
+            LOGGER.warning('Capture: device_info_key not in parameters')
             abort(403)
 
         device_info = parameters[device_info_key]
@@ -394,11 +403,11 @@ def user_capture(user_id):
         try:
             device_info = json.loads(device_info)
         except ValueError:
-            logger.warning('Capture: Could not load device info JSON')
+            LOGGER.warning('Capture: Could not load device info JSON')
             abort(403)
 
         if metadata_key not in parameters:
-            logger.warning('Capture: metadata_key not in parameters')
+            LOGGER.warning('Capture: metadata_key not in parameters')
             abort(403)
 
         metadata = parameters[metadata_key]
@@ -406,12 +415,12 @@ def user_capture(user_id):
         try:
             metadata = json.loads(metadata)
         except ValueError:
-            logger.warning('Capture: Could not load metadata JSON')
+            LOGGER.warning('Capture: Could not load metadata JSON')
             abort(403)
 
-        # /<user_id>/<sessoin_id>/<capture_id>/[1-8, 1-8_[left, right]Eye, metadata].[PNG, JSON]
-
-        insertNewCaptureQuery = 'INSERT INTO captures (session_id, user_id, app_version, device_info, capture_metadata) VALUES (%s, %s, %s, %s, %s) RETURNING capture_id'
+        insertNewCaptureQuery = ('INSERT INTO captures (session_id, user_id, app_version, device_info, capture_metadata)',
+                                 'VALUES (%s, %s, %s, %s, %s)',
+                                 'RETURNING capture_id')
         data = (session_id, user_id, app_version, json.dumps(device_info), json.dumps(metadata))
 
         with conn.cursor() as cursor:
@@ -421,7 +430,7 @@ def user_capture(user_id):
 
         userSessionCapturePath = '{}/{}/{}'.format(str(user_id), str(session_id), str(capture_id))
 
-        logger.info('Capture: Saving data to S3 path tone-user-captures::%s', userSessionCapturePath)
+        LOGGER.info('Capture: Saving data to S3 path tone-user-captures::%s', userSessionCapturePath)
         for imageName, image in images:
             secureImageName = secure_filename(imageName + '.png')
             imagePath = '{}/{}'.format(userSessionCapturePath, secureImageName)
@@ -430,28 +439,25 @@ def user_capture(user_id):
         metadataPath = '{}/{}'.format(userSessionCapturePath, 'metadata.json')
         s3_client.put_object(Bucket=TONE_USER_CAPTURES_BUCKET, Key=metadataPath, Body=json.dumps(metadata))
 
+        LOGGER.info('Capture: Added Task to SQS :: (user_id, session_id, capture_id) : (%s, %s, %s)', user_id, session_id, capture_id)
+        colorMatchMessage = {}
+        colorMatchMessage['user_id'] = user_id
+        colorMatchMessage['session_id'] = session_id
+        colorMatchMessage['capture_id'] = capture_id
+        colorMatchMessageJson = json.dumps(colorMatchMessage)
+
         try:
-            #colorAndFluxish = runSteps.run(user_id, userImageSetName);
-            #colorAndFluxish = runSteps.run2(user_id);
-            logger.info('Capture: Added Task to SQS :: (user_id, session_id, capture_id) : (%s, %s, %s)', user_id, session_id, capture_id)
-            #colorAndFluxish = {}
-            #colorAndFluxish["todo"] = "add task to sqs"
-            colorMatchMessage = {}
-            colorMatchMessage['user_id'] = user_id
-            colorMatchMessage['session_id'] = session_id
-            colorMatchMessage['capture_id'] = capture_id
-            colorMatchMessageJson = json.dumps(colorMatchMessage)
             queue_response = sqs_queue.send_message(MessageBody=colorMatchMessageJson)
-            logger.info('Capture: SQS Response :: %s', queue_response)
+            LOGGER.info('Capture: SQS Response :: %s', queue_response)
         except Exception as e:
-            logger.error('Capture: Error adding task to SQS for (user_id, session_id, capture_id) : (%s, %s, %s)\n%s', user_id, session_id, capture_id, e)
+            LOGGER.error('Capture: Error adding task to SQS for (user_id, session_id, capture_id) : (%s, %s, %s)\n%s', user_id, session_id, capture_id, e)
             return str(e)
         except:
-            logger.error('Capture: Error adding task to SQS for (user_id, session_id, capture_id) : (%s, %s, %s)', user_id, session_id, capture_id)
+            LOGGER.error('Capture: Error adding task to SQS for (user_id, session_id, capture_id) : (%s, %s, %s)', user_id, session_id, capture_id)
             return 'And Unknown error occured'
         else:
-            logger.info('Capture: Success (user_id, session_id, capture_id) : (%s, %s, %s)', user_id, session_id, capture_id)
+            LOGGER.info('Capture: Success (user_id, session_id, capture_id) : (%s, %s, %s)', user_id, session_id, capture_id)
             return colorMatchMessageJson
 
-    logger.warning('No matching Request Method in \'/users/{}/capture\' for {}'.format(user_id, request.method))
+    LOGGER.warning('No matching Request Method in \'/users/{}/capture\' for {}'.format(user_id, request.method))
     abort(404)
