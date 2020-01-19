@@ -1,9 +1,5 @@
 # Tone Server
 
-### Refactor and writeup coming soon! Target date: 1/18/2020
-
-(This grew organically as features were added and has not had any TLC in far to long)
-
 ## Tone Overview
 Tone is a project that aims to address the challenge of getting an accurate foundation makeup match. The current best method for getting accurately matching foundation makeup is to go to a brick and mortar store and try on different shades. Making matters worse, skin tone and skin needs change throughout the year for many people which means the user will often need to go back to the store if their skin changes. 
 
@@ -18,3 +14,7 @@ Tone works to address the core issues by measuring the users skin tone with a mo
 | [Tone Spectrum](https://github.com/dmacewen/tone_spectrum) | A deep dive into [metamerism](https://en.wikipedia.org/wiki/Metamerism_(color)) as a potential source of error for Tone in its current form |
 | [Tone Database](https://github.com/dmacewen/tone_database) | SQL |
 | [Tone SQS](https://github.com/dmacewen/tone_sqs) | Command line utility for sending SQS messages to the Color Match worker. Good for running updated Color Match versions on old captures |
+
+## Description
+
+Tone Server is a simple RESTful api written using the Flask framework. It was designed to be straighforward and facilitate handling user data, logins, and to start color measuring jobs.

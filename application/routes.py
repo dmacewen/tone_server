@@ -216,6 +216,7 @@ def user(user_id):
 
     LOGGER.warning('No matching Request Method in \'/users/%s\' for %s', user_id, request.method)
     abort(404)
+    return None
 
 @webApp.route('/users/<user_id>/agree', methods=['PUT'])
 def user_agreement(user_id):
@@ -261,6 +262,7 @@ def user_agreement(user_id):
 
     LOGGER.warning('No matching Request Method in \'/users/%s/agree\' for %s', user_id, request.method)
     abort(404)
+    return None
 
 @webApp.route('/users/<user_id>/session', methods=['GET', 'POST'])
 def user_capture_session(user_id):
@@ -459,5 +461,6 @@ def user_capture(user_id):
             LOGGER.info('Capture: Success (user_id, session_id, capture_id) : (%s, %s, %s)', user_id, session_id, capture_id)
             return colorMatchMessageJson
 
-    LOGGER.warning('No matching Request Method in \'/users/{}/capture\' for {}'.format(user_id, request.method))
+    LOGGER.warning('No matching Request Method in \'/users/%s/capture\' for %s', user_id, request.method)
     abort(404)
+    return None
